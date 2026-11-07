@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Записи</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{--bg:var(--tg-theme-bg-color,#fff);--text:var(--tg-theme-text-color,#000);--hint:var(--tg-theme-hint-color,#999);--link:var(--tg-theme-link-color,#2ea6ff);--btn:var(--tg-theme-button-color,#2ea6ff);--btn-text:var(--tg-theme-button-text-color,#fff);--sec:var(--tg-theme-secondary-bg-color,#f1f1f1);}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font:15px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);padding:12px;padding-bottom:90px}
+  .header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  h1{font-size:18px;margin:0}
+  .header-btns{display:flex;gap:4px}
+  .icon-btn{background:var(--sec);border:none;font-size:18px;padding:6px 8px;border-radius:10px;cursor:pointer;color:var(--text)}
+  .cal{background:var(--sec);border-radius:14px;padding:10px;margin-bottom:14px}
+  .cal-head{display:flex;justify-content:space-between;align-items:center;padding:4px 6px 10px;font-weight:600}
+  .cal-head button{background:none;border:none;color:var(--link);font-size:22px;padding:4px 10px;cursor:pointer}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+  .grid .wd{font-size:11px;color:var(--hint);padding:4px 0}
+  .day{position:relative;padding:8px 0;border-radius:10px;cursor:pointer;font-size:14px}
+  .day.empty{visibility:hidden}.day.today{font-weight:700;color:var(--link)}
+  .day.sel{background:var(--btn);color:var(--btn-text)}
+  .day.has::after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--btn)}
+  .day.sel.has::after{background:var(--btn-text)}
+  
+  .appt{background:var(--sec);border-radius:12px;padding:12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start}
+  .appt .time{font-weight:700;font-size:16px;min-width:52px}
+  .appt .info{flex:1;min-width:0}
+  .appt .name{font-weight:600}
+  .appt .meta{font-size:12px;color:var(--hint);margin-top:2px;word-break:break-word}
+  .appt .note{font-size:12px;color:#d67b00;margin-top:4px;background:#ffefd6;padding:4px;border-radius:4px;font-style:italic;}
+  .appt .promo{font-size:12px;color:#4caf50;margin-top:2px;font-weight:600;}
+  .appt.done{opacity:.55}.appt.done .name{text-decoration:line-through}
+  .appt.cancelled{opacity:.4}
+  .appt .acts{display:flex;flex-direction:column;gap:4px}
+  .appt .acts button{background:none;border:1px solid var(--sec);border-radius:8px;padding:4px 8px;color:var(--text);font-size:13px;cursor:pointer}
+  
+  .empty-msg{text-align:center;color:var(--hint);padding:30px 10px}
+  .fab{position:fixed;right:16px;bottom:16px;width:56px;height:56px;border-radius:50%;background:var(--btn);color:var(--btn-text);border:none;font-size:28px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;z-index:10}
+  
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;z-index:100}
+  .modal.open{display:flex}
+  .modal-body{background:var(--bg);width:100%;border-radius:16px 16px 0 0;padding:16px;max-height:90vh;overflow-y:auto}
+  .modal-body h3{margin:0 0 12px}
+  .modal-body input, .modal-body select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--sec);background:var(--sec);color:var(--text);font-size:15px;margin-bottom:8px;font-family:inherit}
+  .row{display:flex;gap:8px}.row > *{flex:1}
+  .modal-body .submit{width:100%;padding:14px;border-radius:12px;border:none;background:var(--btn);color:var(--btn-text);font-size:16px;font-weight:600;cursor:pointer;margin-top:8px}
+  .modal-body .cancel{background:none;color:var(--hint);border:none;padding:12px;width:100%;cursor:pointer;font-size:14px}
+  .total{padding:8px 0;text-align:right;color:var(--hint);font-size:13px}
+  
+  .service-row { background: var(--sec); padding: 12px; border-radius: 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .service-row-info h4 { margin: 0 0 4px; font-size: 15px; }
+  .service-row-info p { margin: 0; font-size: 13px; color: var(--hint); }
+  .service-row-actions button { background: none; border: none; font-size: 16px; cursor: pointer; margin-left: 8px; }
+
+  .block-section { margin-bottom: 16px; background: var(--sec); padding: 12px; border-radius: 12px; }
+  .block-section h4 { margin: 0 0 8px; }
+
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .stat-card { background: var(--sec); padding: 16px; border-radius: 12px; text-align: center; }
+  .stat-card h4 { margin: 0 0 8px; font-size: 13px; color: var(--hint); font-weight: normal; }
+  .stat-card p { margin: 0; font-size: 20px; font-weight: 700; color: var(--link); }
+  .client-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid var(--sec); font-size: 14px; }
+  .client-row:last-child { border-bottom: none; }
+</style>
+</head>
+<body>
+<div class="header-row">
+  <h1>📅 Записи</h1>
+  <div class="header-btns">
+    <button class="icon-btn" id="openStats" title="Статистика">📊</button>
+    <button class="icon-btn" id="openPromo" title="Промокоды">🏷️</button>
+    <button class="icon-btn" id="openServices" title="Услуги">✂️</button>
+    <button class="icon-btn" id="openSettings" title="Настройки">⚙️</button>
+  </div>
+</div>
+
+<div class="cal">
+  <div class="cal-head"><button id="prev">‹</button><span id="monthLabel"></span><button id="next">›</button></div>
+  <div class="grid" id="weekdays"></div>
+  <div class="grid" id="days"></div>
+</div>
+<div id="appts"></div>
+<button class="fab" id="addBtn">+</button>
+
+<!-- Модалка записи -->
+<div class="modal" id="modal">
+  <div class="modal-body">
+    <h3 id="modal-title">Запись</h3>
+    <input id="f-date" type="date">
+    <div class="row"><select id="f-time"></select><input id="f-price" type="number" placeholder="Цена"></div>
+    <input id="f-name" placeholder="Имя клиента">
+    <input id="f-phone" placeholder="Телефон" inputmode="tel">
+    <select id="f-service"><option value="">Услуга</option></select>
+    <input id="f-note" placeholder="Заметка мастера">
+    <button class="submit" id="saveBtn">Сохранить</button>
+    <button class="cancel" id="closeBtn">Отмена</button>
+  </div>
+</div>
+
+<!-- Модалка настроек -->
+<div class="modal" id="settingsModal">
+  <div class="modal-body">
+    <h3>Настройки сайта</h3>
+    <input id="s-name" placeholder="Название (напр. MERGE HAIR)">
+    <input id="s-address" placeholder="Адрес">
+    <input id="s-master-name" placeholder="Имя мастера (напр. Дима)">
+    
+    <hr style="border:1px solid var(--sec); margin:16px 0;">
+    
+    <p style="margin:8px 0 4px;font-size:14px;font-weight:600;">Лого салона (сверху)</p>
+    <input id="s-logo-file" type="file" accept="image/*">
+    <input id="s-logo" placeholder="Ссылка на лого" style="margin-top:8px;">
+    
+    <p style="margin:8px 0 4px;font-size:14px;font-weight:600;">Аватар мастера (в карточке)</p>
+    <input id="s-avatar-file" type="file" accept="image/*">
+    <input id="s-avatar" placeholder="Ссылка на аватар" style="margin-top:8px;">
+    
+    <button class="submit" id="saveSettingsBtn">Сохранить</button>
+    <button class="cancel" id="closeSettingsBtn">Отмена</button>
+  </div>
+</div>
+
+<!-- Модалка услуг -->
+<div class="modal" id="servicesModal">
+  <div class="modal-body">
+    <h3>Прайс-лист</h3>
+    <div id="servicesAdminList" style="margin-bottom: 16px;"></div>
+    <h4>Добавить новую</h4>
+    <input id="new-srv-name" placeholder="Название">
+    <div class="row"><input id="new-srv-duration" placeholder="Время"><input id="new-srv-price" type="number" placeholder="Цена"></div>
+    <button class="submit" id="addSrvBtn" style="background:var(--hint);">Добавить</button>
+    <button class="cancel" id="closeServicesBtn">Закрыть</button>
+  </div>
+</div>
+
+<!-- Модалка статистики -->
+<div class="modal" id="statsModal">
+  <div class="modal-body">
+    <h3>📊 Аналитика</h3>
+    <div class="row" style="margin-bottom:12px;">
+      <input type="date" id="stat-start">
+      <input type="date" id="stat-end">
+    </div>
+    <button class="submit" id="calcStatsBtn" style="margin-bottom:16px; padding:10px;">Показать за период</button>
+    <div class="stats-grid">
+      <div class="stat-card"><h4>Выручка</h4><p id="stat-total">0 BYN</p></div>
+      <div class="stat-card"><h4>Визитов</h4><p id="stat-count">0</p></div>
+      <div class="stat-card"><h4>Средний чек</h4><p id="stat-avg">0 BYN</p></div>
+    </div>
+    <h3 style="margin-top:24px;">👥 База клиентов</h3>
+    <div id="clientsList" style="max-height:300px; overflow-y:auto; background:var(--sec); border-radius:12px; padding:0 12px;"></div>
+    <button class="cancel" id="closeStatsBtn" style="margin-top:12px;">Закрыть</button>
+  </div>
+</div>
+
+<!-- Модалка промокодов -->
+<div class="modal" id="promoModal">
+  <div class="modal-body">
+    <h3>🏷️ Промокоды</h3>
+    <div id="promoList" style="margin-bottom:16px;"></div>
+    <h4>Добавить новый</h4>
+    <input id="new-promo-code" placeholder="Код (например, SANYA10)" style="text-transform:uppercase;">
+    <input id="new-promo-discount" type="number" placeholder="Скидка в % (например, 10)">
+    <button class="submit" id="addPromoBtn" style="background:var(--hint);">Добавить</button>
+    <button class="cancel" id="closePromoBtn">Закрыть</button>
+  </div>
+</div>
+
+<!-- Модалка блокировки -->
+<div class="modal" id="blockModal">
+  <div class="modal-body">
+    <h3>Управление расписанием на <span id="block-date-label"></span></h3>
+    <div class="block-section">
+      <h4>Выходной</h4>
+      <button class="submit" id="blockDayBtn" style="background:#ff4444;">Закрыть весь день</button>
+    </div>
+    <div class="block-section">
+      <h4>Обед / Перерыв</h4>
+      <div class="row">
+        <select id="block-time-select"></select>
+        <button class="submit" id="blockSlotBtn" style="margin-top:0;">Закрыть</button>
+      </div>
+      <div id="blocked-list" style="margin-top:8px;"></div>
+    </div>
+    <button class="cancel" id="closeBlockBtn">Закрыть</button>
+  </div>
+</div>
+
+<script>
+var tg = window.Telegram && window.Telegram.WebApp;
+var initData = (tg && tg.initData) ? tg.initData : '';
+if (tg) { tg.ready(); tg.expand(); }
+
+var editingId = null, currentAppts = [], globalServices = [], currentBlocked = [];
+var ALL_SLOTS = []; for (var h = 10; h <= 20; h++) ALL_SLOTS.push(h + ':00');
+
+var tSelect = document.getElementById('f-time'); var bSelect = document.getElementById('block-time-select');
+var tHtml = '<option value="">Время</option>'; var bHtml = '<option value="">Выбрать</option>';
+for (var i=0; i<ALL_SLOTS.length; i++) { tHtml += '<option value="'+ALL_SLOTS[i]+'">'+ALL_SLOTS[i]+'</option>'; bHtml += '<option value="'+ALL_SLOTS[i]+'">'+ALL_SLOTS[i]+'</option>'; }
+tSelect.innerHTML = tHtml; bSelect.innerHTML = bHtml;
+
+async function api(path, opts) {
+  opts = opts || {};
+  var headers = {'X-Init-Data': initData,'ngrok-skip-browser-warning': '1'};
+  if (opts.body && !(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+  if (opts.headers) { for (var k in opts.headers) headers[k] = opts.headers[k]; }
+  var fetchOpts = { method: opts.method || 'GET', headers: headers };
+  if (opts.body) fetchOpts.body = opts.body;
+  var r = await fetch(path, fetchOpts);
+  if (!r.ok) { var t = await r.text(); alert('Ошибка: ' + r.status); throw new Error(t); }
+  return r.json();
+}
+
+var MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+var WD = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+function ymd(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function isoDate(y,m,day) { return y + '-' + String(m+1).padStart(2,'0') + '-' + String(day).padStart(2,'0'); }
+function esc(s) { return String(s||'').replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+var view = new Date(); view.setDate(1);
+var selected = ymd(new Date());
+var counts = {};
+
+async function loadCounts() {
+  try { counts = await api('/api/calendar?year=' + view.getFullYear() + '&month=' + (view.getMonth()+1)); } catch (err) { counts = {}; }
+  renderDays();
+}
+
+function renderDays() {
+  document.getElementById('monthLabel').textContent = MONTHS[view.getMonth()] + ' ' + view.getFullYear();
+  document.getElementById('weekdays').innerHTML = WD.map(w => `<div class="wd">${w}</div>`).join('');
+  var y = view.getFullYear(), m = view.getMonth();
+  var startOffset = (new Date(y, m, 1).getDay() + 6) % 7;
+  var lastDay = new Date(y, m + 1, 0).getDate();
+  var today = ymd(new Date()); var html = '';
+  for (var i = 0; i < startOffset; i++) html += '<div class="day empty"></div>';
+  for (var d = 1; d <= lastDay; d++) {
+    var key = isoDate(y, m, d); var cls = 'day';
+    if (key === today) cls += ' today'; if (key === selected) cls += ' sel'; if (counts[key]) cls += ' has';
+    html += '<div class="' + cls + '" data-date="' + key + '">' + d + '</div>';
+  }
+  var daysBox = document.getElementById('days'); daysBox.innerHTML = html;
+  var dayEls = daysBox.querySelectorAll('.day:not(.empty)');
+  for (var i = 0; i < dayEls.length; i++) {
+    dayEls[i].onclick = function() { selected = this.getAttribute('data-date'); renderDays(); loadAppts(); };
+    dayEls[i].ondblclick = function() { openBlockModal(this.getAttribute('data-date')); };
+  }
+}
+
+async function loadAppts() {
+  var box = document.getElementById('appts'); box.innerHTML = '<div class="empty-msg">Загрузка…</div>';
+  try {
+    var list = await api('/api/appointments?date=' + selected);
+    currentAppts = list;
+    if (!list.length) { box.innerHTML = '<div class="empty-msg">На этот день записей нет<br><small style="color:var(--link);cursor:pointer;" onclick="openBlockModal(\''+selected+'\')">⚙️ Настроить расписание</small></div>'; return; }
+    var total = 0, html = '';
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i];
+      if (a.status === 'done' && a.price) total += a.price;
+      var metaArr = []; if (a.service) metaArr.push(a.service); if (a.price) metaArr.push(a.price + ' BYN'); if (a.client_phone) metaArr.push(a.client_phone);
+      var meta = metaArr.join(' · ');
+      html += '<div class="appt ' + a.status + '"><div class="time">' + a.time + '</div><div class="info"><div class="name">' + esc(a.client_name) + '</div>';
+      if (meta) html += '<div class="meta">' + esc(meta) + '</div>';
+      if (a.promo_code) html += '<div class="promo">🏷️ ' + esc(a.promo_code) + '</div>';
+      if (a.admin_note) html += '<div class="note">📝 ' + esc(a.admin_note) + '</div>';
+      html += '</div><div class="acts">';
+      html += '<button data-act="edit" data-id="' + a.id + '">✏️</button>';
+      if (a.status === 'confirmed') html += '<button data-act="done" data-id="' + a.id + '">✓</button>';
+      if (a.status !== 'cancelled') html += '<button data-act="cancel" data-id="' + a.id + '">✕</button>';
+      html += '<button data-act="del" data-id="' + a.id + '">🗑</button></div></div>';
+    }
+    html += '<div class="total">Итого: ' + total + ' BYN</div>';
+    html += '<div style="text-align:center;margin-top:10px;"><button style="background:none;border:none;color:var(--link);cursor:pointer;" onclick="openBlockModal(\''+selected+'\')">⚙️ Настроить расписание на этот день</button></div>';
+    box.innerHTML = html;
+    var btns = box.querySelectorAll('button[data-act]');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].onclick = function() { handleAct(this.getAttribute('data-act'), this.getAttribute('data-id')); };
+    }
+  } catch (err) { box.innerHTML = '<div class="empty-msg">Ошибка</div>'; }
+}
+
+async function handleAct(act, id) {
+  if (act === 'edit') {
+    var apt = currentAppts.find(function(x) { return x.id == id; });
+    if (!apt) return;
+    editingId = id;
+    document.getElementById('modal-title').textContent = 'Редактировать';
+    document.getElementById('f-date').value = apt.date;
+    document.getElementById('f-time').value = apt.time;
+    document.getElementById('f-price').value = apt.price || '';
+    document.getElementById('f-name').value = apt.client_name;
+    document.getElementById('f-phone').value = apt.client_phone || '';
+    document.getElementById('f-service').value = apt.service || '';
+    document.getElementById('f-note').value = apt.admin_note || '';
+    document.getElementById('modal').classList.add('open');
+    return;
+  }
+  try {
+    if (act === 'del') { if (!confirm('Удалить?')) return; await api('/api/appointments/' + id, { method: 'DELETE' }); }
+    else if (act === 'done') { await api('/api/appointments/' + id, { method: 'PATCH', body: JSON.stringify({status:'done'}) }); }
+    else if (act === 'cancel') { await api('/api/appointments/' + id, { method: 'PATCH', body: JSON.stringify({status:'cancelled'}) }); }
+    loadAppts(); loadCounts();
+  } catch (err) {}
+}
+
+document.getElementById('prev').onclick = () => { view.setMonth(view.getMonth() - 1); loadCounts(); };
+document.getElementById('next').onclick = () => { view.setMonth(view.getMonth() + 1); loadCounts(); };
+document.getElementById('addBtn').onclick = () => { 
+  editingId = null; document.getElementById('modal-title').textContent = 'Новая запись';
+  document.getElementById('f-date').value = selected; document.getElementById('modal').classList.add('open'); 
+};
+document.getElementById('closeBtn').onclick = () => document.getElementById('modal').classList.remove('open');
+
+document.getElementById('saveBtn').onclick = async () => {
+  var date = document.getElementById('f-date').value, time = document.getElementById('f-time').value, name = document.getElementById('f-name').value.trim();
+  if (!date || !time || !name) return alert('Заполни дату, время и имя');
+  var priceRaw = document.getElementById('f-price').value;
+  var data = { date: date, time: time, client_name: name, client_phone: document.getElementById('f-phone').value.trim() || null, service: document.getElementById('f-service').value || null, price: priceRaw ? parseInt(priceRaw) : null, admin_note: document.getElementById('f-note').value.trim() || null };
+  var url = editingId ? '/api/appointments/' + editingId : '/api/appointments';
+  try {
+    await api(url, { method: editingId ? 'PUT' : 'POST', body: JSON.stringify(data) });
+    document.getElementById('modal').classList.remove('open');
+    ['f-time','f-name','f-phone','f-service','f-price','f-note'].forEach(id => document.getElementById(id).value = '');
+    selected = date; var parts = date.split('-'); view = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+    loadCounts(); loadAppts();
+  } catch (err) {}
+};
+
+// УСЛУГИ
+async function loadServicesForDropdown() {
+  try {
+    globalServices = await api('/api/services');
+    var srvSelect = document.getElementById('f-service');
+    var html = '<option value="">Услуга</option>';
+    for(var i=0; i<globalServices.length; i++) html += '<option value="'+globalServices[i].name+'">'+globalServices[i].name+' ('+globalServices[i].price+' BYN)</option>';
+    srvSelect.innerHTML = html;
+    srvSelect.onchange = function() {
+      var srv = globalServices.find(function(x){ return x.name === this.value; }.bind(this));
+      if (srv) document.getElementById('f-price').value = srv.price;
+    }
+  } catch(e) {}
+}
+async function loadAdminServices() {
+  var list = document.getElementById('servicesAdminList');
+  try {
+    var services = await api('/api/services');
+    var html = '';
+    for(var i=0; i<services.length; i++) {
+      var s = services[i];
+      html += '<div class="service-row"><div class="service-row-info"><h4>'+s.name+'</h4><p>'+s.duration+' · <b>'+s.price+' BYN</b></p></div>';
+      html += '<div class="service-row-actions"><button onclick="editService('+s.id+',\''+s.name+'\',\''+s.duration+'\','+s.price+')">✏️</button><button onclick="deleteService('+s.id+')">🗑</button></div></div>';
+    }
+    list.innerHTML = html; loadServicesForDropdown();
+  } catch(e) {}
+}
+window.editService = async function(id, oldName, oldDur, oldPrice) {
+  var newName = prompt("Название:", oldName); if(newName === null) return;
+  var newDur = prompt("Время:", oldDur); if(newDur === null) return;
+  var newPrice = prompt("Цена:", oldPrice); if(newPrice === null) return;
+  await api('/api/services/' + id, { method: 'PUT', body: JSON.stringify({ name: newName, duration: newDur, price: parseInt(newPrice) }) });
+  loadAdminServices();
+};
+window.deleteService = async function(id) { if(!confirm("Удалить?")) return; await api('/api/services/' + id, { method: 'DELETE' }); loadAdminServices(); };
+document.getElementById('addSrvBtn').onclick = async () => {
+  var name = document.getElementById('new-srv-name').value.trim(); var price = document.getElementById('new-srv-price').value;
+  if(!name || !price) return alert("Заполни поля");
+  await api('/api/services', { method: 'POST', body: JSON.stringify({ name: name, duration: document.getElementById('new-srv-duration').value || '1 ч', price: parseInt(price) }) });
+  document.getElementById('new-srv-name').value = ''; document.getElementById('new-srv-price').value = '';
+  loadAdminServices();
+};
+document.getElementById('openServices').onclick = () => { loadAdminServices(); document.getElementById('servicesModal').classList.add('open'); };
+document.getElementById('closeServicesBtn').onclick = () => document.getElementById('servicesModal').classList.remove('open');
+
+// СТАТИСТИКА И КЛИЕНТЫ
+document.getElementById('openStats').onclick = async () => {
+  var now = new Date();
+  document.getElementById('stat-start').value = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-01';
+  document.getElementById('stat-end').value = ymd(now);
+  document.getElementById('statsModal').classList.add('open');
+  document.getElementById('calcStatsBtn').click();
+  loadClients();
+};
+document.getElementById('closeStatsBtn').onclick = () => document.getElementById('statsModal').classList.remove('open');
+document.getElementById('calcStatsBtn').onclick = async () => {
+  var s = document.getElementById('stat-start').value; var e = document.getElementById('stat-end').value;
+  if(!s || !e) return;
+  try {
+    var res = await api('/api/stats?start_date=' + s + '&end_date=' + e);
+    document.getElementById('stat-total').textContent = res.total + ' BYN';
+    document.getElementById('stat-count').textContent = res.count;
+    document.getElementById('stat-avg').textContent = res.avg + ' BYN';
+  } catch(e) {}
+};
+async function loadClients() {
+  try {
+    var clients = await api('/api/clients');
+    var html = '';
+    if(clients.length === 0) html = '<div style="padding:12px;text-align:center;color:var(--hint);">Пока нет выполненных записей</div>';
+    for(var i=0; i<clients.length; i++) {
+      var c = clients[i];
+      html += '<div class="client-row"><div><b>'+esc(c.client_name)+'</b><br><small style="color:var(--hint);">'+esc(c.client_phone||'')+'</small></div><div style="text-align:right;"><b>'+c.total_spent+' BYN</b><br><small style="color:var(--hint);">'+c.visits+' визитов</small></div></div>';
+    }
+    document.getElementById('clientsList').innerHTML = html;
+  } catch(e) {}
+}
+
+// ПРОМОКОДЫ
+document.getElementById('openPromo').onclick = async () => {
+  document.getElementById('promoModal').classList.add('open');
+  loadPromos();
+};
+document.getElementById('closePromoBtn').onclick = () => document.getElementById('promoModal').classList.remove('open');
+async function loadPromos() {
+  try {
+    var promos = await api('/api/promo');
+    var html = '';
+    if(promos.length === 0) html = '<div style="text-align:center;color:var(--hint);">Нет промокодов</div>';
+    for(var i=0; i<promos.length; i++) {
+      var p = promos[i];
+      html += '<div class="service-row"><div class="service-row-info"><h4>'+p.code+'</h4><p>Скидка: <b>'+p.discount+'%</b></p></div>';
+      html += '<div class="service-row-actions"><button onclick="deletePromo('+p.id+')">🗑</button></div></div>';
+    }
+    document.getElementById('promoList').innerHTML = html;
+  } catch(e) {}
+}
+window.deletePromo = async function(id) { if(!confirm("Удалить промокод?")) return; await api('/api/promo/' + id, { method: 'DELETE' }); loadPromos(); };
+document.getElementById('addPromoBtn').onclick = async () => {
+  var code = document.getElementById('new-promo-code').value.trim(); var discount = document.getElementById('new-promo-discount').value;
+  if(!code || !discount) return alert("Заполни поля");
+  try {
+    await api('/api/promo', { method: 'POST', body: JSON.stringify({ code: code, discount: parseInt(discount) }) });
+    document.getElementById('new-promo-code').value = ''; document.getElementById('new-promo-discount').value = '';
+    loadPromos();
+  } catch(e) { alert("Ошибка. Возможно, такой код уже есть."); }
+};
+
+// БЛОКИРОВКА
+window.openBlockModal = async function(date) {
+  document.getElementById('block-date-label').textContent = date;
+  document.getElementById('blockModal').dataset.date = date;
+  document.getElementById('blockModal').classList.add('open');
+  loadBlockedList(date);
+};
+document.getElementById('closeBlockBtn').onclick = () => document.getElementById('blockModal').classList.remove('open');
+async function loadBlockedList(date) {
+  try {
+    currentBlocked = await api('/api/blocked?date=' + date);
+    var html = '<div style="font-size:13px;color:var(--hint);">Закрытые часы:</div>';
+    if(currentBlocked.length === 0) html += '<div style="font-size:13px;">Нет</div>';
+    for(var i=0; i<currentBlocked.length; i++) {
+      html += '<div style="display:flex;justify-content:space-between;background:var(--bg);padding:4px 8px;border-radius:6px;margin-top:4px;font-size:14px;"><span>'+currentBlocked[i]+'</span><button style="background:none;border:none;color:#ff4444;cursor:pointer;" onclick="unblockSlot(\''+date+'\', \''+currentBlocked[i]+'\')">✕</button></div>';
+    }
+    document.getElementById('blocked-list').innerHTML = html;
+  } catch(e) {}
+}
+window.unblockSlot = async function(date, time) { await api('/api/blocked/' + date + '/' + time, { method: 'DELETE' }); loadBlockedList(date); };
+document.getElementById('blockSlotBtn').onclick = async () => {
+  var date = document.getElementById('blockModal').dataset.date;
+  var time = document.getElementById('block-time-select').value;
+  if(!time) return alert("Выбери время");
+  await api('/api/blocked', { method: 'POST', body: JSON.stringify({ date: date, time: time }) });
+  loadBlockedList(date);
+};
+document.getElementById('blockDayBtn').onclick = async () => {
+  if(!confirm("Закрыть весь день?")) return;
+  var date = document.getElementById('blockModal').dataset.date;
+  for(var i=0; i<ALL_SLOTS.length; i++) {
+    await api('/api/blocked', { method: 'POST', body: JSON.stringify({ date: date, time: ALL_SLOTS[i] }) });
+  }
+  loadBlockedList(date);
+};
+
+// НАСТРОЙКИ
+document.getElementById('openSettings').onclick = async () => {
+  var s = await api('/api/settings');
+  document.getElementById('s-name').value = s.name || ''; 
+  document.getElementById('s-address').value = s.address || ''; 
+  document.getElementById('s-master-name').value = s.master_name || '';
+  document.getElementById('s-avatar').value = s.avatar || '';
+  document.getElementById('s-logo').value = s.logo || '';
+  document.getElementById('settingsModal').classList.add('open');
+};
+document.getElementById('closeSettingsBtn').onclick = () => document.getElementById('settingsModal').classList.remove('open');
+document.getElementById('saveSettingsBtn').onclick = async () => {
+  var avatarUrl = document.getElementById('s-avatar').value.trim();
+  var avatarFile = document.getElementById('s-avatar-file');
+  if (avatarFile.files.length > 0) {
+    var fd1 = new FormData(); fd1.append("file", avatarFile.files[0]);
+    var res1 = await api('/api/upload', { method: 'POST', body: fd1 });
+    avatarUrl = res1.url;
+  }
+
+  var logoUrl = document.getElementById('s-logo').value.trim();
+  var logoFile = document.getElementById('s-logo-file');
+  if (logoFile.files.length > 0) {
+    var fd2 = new FormData(); fd2.append("file", logoFile.files[0]);
+    var res2 = await api('/api/upload', { method: 'POST', body: fd2 });
+    logoUrl = res2.url;
+  }
+
+  await api('/api/settings', { method: 'POST', body: JSON.stringify({ 
+    name: document.getElementById('s-name').value.trim(), 
+    address: document.getElementById('s-address').value.trim(), 
+    avatar: avatarUrl,
+    logo: logoUrl,
+    master_name: document.getElementById('s-master-name').value.trim()
+  }) });
+  document.getElementById('settingsModal').classList.remove('open'); alert('Сохранено!');
+};
+
+loadCounts().then(loadAppts);
+loadServicesForDropdown();
+</script>
+</body>
+</html>

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Онлайн-запись</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root { --bg: #111111; --card-bg: #1e1e1e; --text: #ffffff; --text-muted: #8e8e93; --border: #2c2c2e; }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;}
+  body{margin:0; background:var(--bg); color:var(--text); padding:16px; padding-bottom:40px;}
+  
+  .header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+  .header img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; background: #333; }
+  .header-info h1 { font-size: 18px; margin: 0 0 4px; font-weight: 600; text-transform: uppercase; }
+  .header-info p { margin: 0; font-size: 13px; color: var(--text-muted); }
+
+  .master-card { background: var(--card-bg); border-radius: 16px; padding: 20px; text-align: center; margin-bottom: 20px; }
+  .master-card img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-bottom: 12px; }
+  .stars { color: #ffcc00; font-size: 16px; letter-spacing: 2px; display: flex; justify-content: center; align-items: center; gap: 5px;}
+
+  .section-title { font-size: 22px; font-weight: 700; margin: 24px 0 16px; }
+  
+  .service-item { background: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border: 1px solid transparent; transition: 0.2s; }
+  .service-item.selected { border-color: var(--text); }
+  .service-info h3 { margin: 0 0 4px; font-size: 16px; }
+  .service-info .duration { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
+  .service-info .price { font-size: 16px; font-weight: 600; }
+  .checkbox { width: 24px; height: 24px; border-radius: 6px; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; }
+  .service-item.selected .checkbox { background: var(--text); border-color: var(--text); }
+  .checkbox svg { width: 14px; height: 14px; fill: none; stroke: var(--bg); stroke-width: 3; display: none; }
+  .service-item.selected .checkbox svg { display: block; }
+
+  .date-picker-wrap { margin-bottom: 16px; }
+  .date-picker-wrap input { width: 100%; background: var(--card-bg); border: none; color: var(--text); padding: 14px; border-radius: 12px; font-size: 16px; outline: none; }
+  .time-group { margin-bottom: 16px; }
+  .time-group h3 { font-size: 14px; color: var(--text-muted); margin: 0 0 8px 0; font-weight: 400; }
+  .slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .slot { background: var(--card-bg); padding: 12px 0; text-align: center; border-radius: 8px; cursor: pointer; font-size: 15px; border: 1px solid transparent;}
+  .slot.active { border-color: var(--text); }
+  .slot.disabled { opacity: 0.3; text-decoration: line-through; pointer-events: none; }
+
+  input[type="tel"], input[type="text"], textarea { width: 100%; background: var(--card-bg); border: none; color: var(--text); padding: 16px; border-radius: 12px; font-size: 16px; outline: none; margin-bottom: 12px; font-family: inherit; resize: none; }
+  
+  .promo-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .promo-row input { margin-bottom: 0; flex: 1; text-transform: uppercase; }
+  .promo-btn { background: var(--border); color: var(--text); border: none; padding: 0 20px; border-radius: 12px; font-weight: 600; cursor: pointer; }
+
+  .submit-btn { width: 100%; background: #ffffff; color: #000000; border: none; padding: 18px; border-radius: 14px; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 20px; }
+  .submit-btn:disabled { opacity: 0.5; }
+  
+  .my-booking { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 20px; text-align: center; }
+  .my-booking h3 { margin: 0 0 10px; font-size: 20px; color: #ffcc00; }
+  .my-booking p { margin: 5px 0; font-size: 16px; }
+  .cancel-btn { background: transparent; color: #ff4444; border: 1px solid #ff4444; padding: 12px; border-radius: 10px; font-size: 14px; cursor: pointer; width: 100%; margin-top: 15px; }
+
+  .review-card { background: var(--card-bg); padding: 16px; border-radius: 12px; margin-bottom: 12px; }
+  .review-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .review-name { font-weight: 600; }
+  .review-date { color: var(--text-muted); font-size: 13px; }
+  .review-text { font-size: 14px; margin-top: 8px; line-height: 1.4; }
+  .star-rating { font-size: 32px; color: #444; cursor: pointer; user-select: none; text-align: center; margin-bottom: 12px;}
+  .star-rating .active { color: #ffcc00; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="" id="h-logo" alt="Logo"> <!-- Теперь тут Лого -->
+  <div class="header-info">
+    <h1 id="h-name">Загрузка...</h1>
+    <p id="h-address"></p>
+  </div>
+</div>
+
+<div id="reviewsContainer" style="display:none;">
+  <h1 class="section-title">Отзывы</h1>
+  <div style="background:var(--card-bg); padding:16px; border-radius:16px; margin-bottom:20px;">
+    <h3 style="margin:0 0 12px; text-align:center;">Оцените работу</h3>
+    <div class="star-rating" id="starRating"><span data-val="1">★</span><span data-val="2">★</span><span data-val="3">★</span><span data-val="4">★</span><span data-val="5">★</span></div>
+    <textarea id="reviewText" placeholder="Напишите пару слов о стрижке..." rows="3"></textarea>
+    <button class="submit-btn" id="submitReviewBtn">Отправить отзыв</button>
+  </div>
+  <div id="reviewsList"></div>
+</div>
+
+<div id="bookingForm" style="display:none;">
+  <div class="master-card">
+    <img src="" id="m-avatar" alt="Master"> <!-- Тут Аватар мастера -->
+    <h2 id="m-name">Мастер</h2>
+    <p>Парикмахер-стилист</p>
+    <div class="stars" id="masterRating">Загрузка...</div>
+  </div>
+
+  <h1 class="section-title">Выбрать услуги</h1>
+  <div id="servicesList"></div>
+
+  <h1 class="section-title">Дата и время</h1>
+  <div class="date-picker-wrap"><input type="date" id="dateInput"></div>
+  <div id="slotsContainer"></div>
+
+  <h1 class="section-title">Ваш телефон</h1>
+  <input type="tel" id="phoneInput" placeholder="+375 (__) ___-__-__" inputmode="tel">
+  
+  <div class="promo-row">
+    <input type="text" id="promoInput" placeholder="Промокод (если есть)">
+    <button class="promo-btn" id="applyPromoBtn">Применить</button>
+  </div>
+  <div id="promoMsg" style="font-size:14px; margin-bottom:12px; font-weight:600;"></div>
+
+  <button class="submit-btn" id="bookBtn">Записаться</button>
+</div>
+
+<div id="myBookingsContainer" style="display:none;">
+  <h1 class="section-title">Мои записи</h1>
+</div>
+
+<script>
+var tg = window.Telegram && window.Telegram.WebApp;
+var initData = (tg && tg.initData) ? tg.initData : '';
+if (tg) { tg.ready(); tg.expand(); }
+
+var selectedServiceName = null, selectedServicePrice = null, selectedTime = null;
+var SERVICES = [];
+var ALL_SLOTS = []; for (var h = 10; h <= 20; h++) ALL_SLOTS.push(h + ':00');
+
+var appliedPromo = null;
+var currentFinalPrice = 0;
+
+var urlParams = new URLSearchParams(window.location.search);
+var viewParam = urlParams.get('view');
+
+async function api(path, opts) {
+  opts = opts || {};
+  var headers = {'Content-Type': 'application/json','X-Init-Data': initData,'ngrok-skip-browser-warning': '1'};
+  if (opts.headers) { for (var k in opts.headers) headers[k] = opts.headers[k]; }
+  var fetchOpts = { method: opts.method || 'GET', headers: headers };
+  if (opts.body) fetchOpts.body = opts.body;
+  var r = await fetch(path, fetchOpts);
+  if (!r.ok) { 
+    var t = await r.text(); 
+    var errMsg = "Ошибка";
+    try { var parsed = JSON.parse(t); if(parsed.detail) errMsg = parsed.detail; } catch(e) {}
+    alert(errMsg); throw new Error(t); 
+  }
+  return r.json();
+}
+
+async function loadReviewStats() {
+  try {
+    var stats = await api('/api/reviews/stats');
+    var el = document.getElementById('masterRating');
+    if (stats.count === 0) {
+      el.innerHTML = '★★★★★ <span style="color:var(--text-muted); font-size:13px;">Нет отзывов</span>';
+    } else {
+      el.innerHTML = '★ ' + stats.avg_rating + ' <span style="color:var(--text-muted); font-size:13px;">(' + stats.count + ' отзывов)</span>';
+    }
+  } catch(e) {}
+}
+
+async function loadData() {
+  try {
+    var s = await api('/api/settings');
+    // Устанавливаем лого и аватар отдельно
+    if(s.logo) document.getElementById('h-logo').src = s.logo;
+    if(s.avatar) document.getElementById('m-avatar').src = s.avatar;
+    
+    if(s.name) document.getElementById('h-name').textContent = s.name;
+    if(s.address) document.getElementById('h-address').textContent = s.address;
+    if(s.master_name) document.getElementById('m-name').textContent = s.master_name;
+
+    if (viewParam === 'reviews') {
+      document.getElementById('reviewsContainer').style.display = 'block';
+      loadReviews();
+      return;
+    }
+    if (viewParam === 'my') {
+      document.getElementById('myBookingsContainer').style.display = 'block';
+      loadMyBookings();
+      return;
+    }
+
+    document.getElementById('bookingForm').style.display = 'block';
+    loadServices();
+    loadSlots();
+  } catch(e) { console.error(e); }
+}
+
+// --- ПРОМОКОД ---
+document.getElementById('applyPromoBtn').onclick = async function() {
+  var code = document.getElementById('promoInput').value.trim();
+  var msg = document.getElementById('promoMsg');
+  if(!code) return;
+  if(!selectedServicePrice) return alert("Сначала выберите услугу!");
+  
+  try {
+    this.disabled = true;
+    var res = await api('/api/promo/validate?code=' + code);
+    appliedPromo = code;
+    var discount = res.discount;
+    var newPrice = Math.round(selectedServicePrice * (1 - discount/100));
+    currentFinalPrice = newPrice;
+    msg.style.color = '#4caf50';
+    msg.innerHTML = '✅ Промокод применён! Скидка ' + discount + '%. Итог: ' + newPrice + ' BYN';
+    document.getElementById('bookBtn').textContent = 'Записаться за ' + newPrice + ' BYN';
+  } catch(e) {
+    appliedPromo = null;
+    currentFinalPrice = selectedServicePrice;
+    msg.style.color = '#ff4444';
+    msg.innerHTML = '❌ Неверный или неактивный промокод';
+    document.getElementById('bookBtn').textContent = 'Записаться';
+  } finally {
+    this.disabled = false;
+  }
+};
+
+// --- ОТЗЫВЫ ---
+var currentRating = 0;
+var stars = document.querySelectorAll('.star-rating span');
+for(var i=0; i<stars.length; i++) {
+  stars[i].onclick = function() {
+    currentRating = parseInt(this.getAttribute('data-val'));
+    for(var j=0; j<stars.length; j++) {
+      if(parseInt(stars[j].getAttribute('data-val')) <= currentRating) stars[j].classList.add('active');
+      else stars[j].classList.remove('active');
+    }
+  }
+}
+document.getElementById('submitReviewBtn').onclick = async function() {
+  var text = document.getElementById('reviewText').value.trim();
+  if(!currentRating) return alert("Поставьте оценку (звезды)");
+  var name = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.first_name : 'Аноним';
+  try {
+    this.disabled = true;
+    await api('/api/reviews', { method: 'POST', body: JSON.stringify({ client_name: name, rating: currentRating, text: text }) });
+    tg.showAlert('Спасибо за ваш отзыв!');
+    document.getElementById('reviewText').value = '';
+    currentRating = 0; 
+    for(var j=0; j<stars.length; j++) stars[j].classList.remove('active');
+    loadReviews();
+    this.disabled = false;
+  } catch(e) { this.disabled = false; }
+};
+async function loadReviews() {
+  var list = document.getElementById('reviewsList');
+  var revs = await api('/api/reviews');
+  if(revs.length === 0) { list.innerHTML = '<div style="text-align:center;color:var(--text-muted);">Пока нет отзывов. Будьте первым!</div>'; return; }
+  var html = '';
+  for(var i=0; i<revs.length; i++) {
+    var r = revs[i]; var starsHtml = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+    html += '<div class="review-card"><div class="review-header"><span class="review-name">'+r.client_name+'</span><span class="review-date">'+new Date(r.created_at).toLocaleDateString('ru-RU')+'</span></div>';
+    html += '<div style="color:#ffcc00; font-size:14px;">'+starsHtml+'</div>';
+    if(r.text) html += '<div class="review-text">'+r.text+'</div></div>';
+  }
+  list.innerHTML = html;
+}
+
+// --- МОИ ЗАПИСИ ---
+async function loadMyBookings() {
+  var box = document.getElementById('myBookingsContainer');
+  var my = await api('/api/my_appointments');
+  if (my.length === 0) { box.innerHTML += '<div style="text-align:center;color:var(--text-muted);margin-top:20px;">У вас нет активных записей.</div>'; return; }
+  var html = '';
+  for(var i=0; i<my.length; i++) {
+    var a = my[i];
+    html += '<div class="my-booking"><h3>Вы записаны</h3><p><b>Дата:</b> '+a.date+'</p><p><b>Время:</b> '+a.time+'</p><p><b>Услуга:</b> '+a.service+'</p>';
+    html += '<button class="cancel-btn" onclick="cancelBooking('+a.id+')">Отменить запись</button></div>';
+  }
+  box.innerHTML += html;
+}
+window.cancelBooking = async function(id) {
+  if(!confirm("Отменить запись?")) return;
+  try { await api('/api/cancel_my/' + id, { method: 'POST' }); location.reload(); } catch(e) {}
+};
+
+// --- ЗАПИСЬ ---
+async function loadServices() {
+  SERVICES = await api('/api/services');
+  var sHtml = '';
+  for (var i=0; i<SERVICES.length; i++) {
+    var s = SERVICES[i];
+    sHtml += '<div class="service-item" data-name="'+s.name+'" data-price="'+s.price+'"><div class="service-info"><h3>'+s.name+'</h3><div class="duration">'+(s.duration||'')+'</div><div class="price">'+s.price+' BYN</div></div><div class="checkbox"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg></div></div>';
+  }
+  document.getElementById('servicesList').innerHTML = sHtml || '<div>Нет услуг</div>';
+  var sBtns = document.querySelectorAll('.service-item');
+  for(var i=0; i<sBtns.length; i++) {
+    sBtns[i].onclick = function() {
+      for(var j=0; j<sBtns.length; j++) sBtns[j].classList.remove('selected');
+      this.classList.add('selected');
+      selectedServiceName = this.getAttribute('data-name');
+      selectedServicePrice = parseInt(this.getAttribute('data-price'));
+      currentFinalPrice = selectedServicePrice;
+      appliedPromo = null;
+      document.getElementById('promoInput').value = '';
+      document.getElementById('promoMsg').innerHTML = '';
+      document.getElementById('bookBtn').textContent = 'Записаться';
+    }
+  }
+}
+
+var today = new Date();
+document.getElementById('dateInput').value = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+document.getElementById('dateInput').min = document.getElementById('dateInput').value;
+
+async function loadSlots() {
+  var date = document.getElementById('dateInput').value;
+  if(!date) return;
+  document.getElementById('slotsContainer').innerHTML = '<div style="color:var(--text-muted)">Загрузка...</div>';
+  try {
+    var booked = await api('/api/slots?date=' + date);
+    var morning = [], day = [], evening = [];
+    for(var i=0; i<ALL_SLOTS.length; i++) {
+      var t = ALL_SLOTS[i]; var h = parseInt(t.split(':')[0]);
+      if(h < 12) morning.push(t); else if(h < 17) day.push(t); else evening.push(t);
+    }
+    function render(title, slots) {
+      if(slots.length === 0) return '';
+      var html = '<div class="time-group"><h3>'+title+'</h3><div class="slots">';
+      for(var i=0; i<slots.length; i++) {
+        var t = slots[i]; var isB = booked.indexOf(t) !== -1;
+        html += '<div class="slot'+(isB?' disabled':'')+'" data-time="'+t+'">'+t+'</div>';
+      }
+      return html + '</div></div>';
+    }
+    document.getElementById('slotsContainer').innerHTML = render('Утро', morning) + render('День', day) + render('Вечер', evening);
+    var slots = document.querySelectorAll('.slot:not(.disabled)');
+    for(var i=0; i<slots.length; i++) {
+      slots[i].onclick = function() {
+        document.querySelectorAll('.slot').forEach(el => el.classList.remove('active'));
+        this.classList.add('active');
+        selectedTime = this.getAttribute('data-time');
+      }
+    }
+  } catch(e) {}
+}
+document.getElementById('dateInput').onchange = function() { selectedTime = null; loadSlots(); };
+
+document.getElementById('bookBtn').onclick = async function() {
+  var phone = document.getElementById('phoneInput').value.trim();
+  if (!selectedServiceName || !selectedTime || !phone) return alert('Заполните все поля!');
+  var name = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.first_name : 'Клиент';
+  
+  try {
+    this.disabled = true;
+    await api('/api/book', { 
+      method: 'POST', 
+      body: JSON.stringify({ 
+        date: document.getElementById('dateInput').value, 
+        time: selectedTime, 
+        client_name: name, 
+        client_phone: phone, 
+        service: selectedServiceName, 
+        price: currentFinalPrice,
+        promo_code: appliedPromo
+      }) 
+    });
+    tg.showAlert('Вы записаны!', function(){ tg.close(); });
+  } catch(e) { this.disabled = false; }
+};
+
+loadData();
+loadReviewStats();
+</script>
+</body>
+</html>
