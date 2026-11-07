@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import httpx
+from aiogram import Bot, Dispatcher
+from aiogram.filters import Command
+from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton, MenuButtonWebApp
 from fastapi import FastAPI, Depends, HTTPException, Header, File, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,7 +16,38 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 ADMIN_IDS = {int(x) for x in os.environ.get("ADMIN_IDS", "").split(",") if x.strip()}
 DB_PATH = os.environ.get("DB_PATH", "barber.db")
 DEV_MODE = os.environ.get("DEV_MODE", "0") == "1"
+WEBAPP_URL = os.environ["WEBAPP_URL"]
+if not WEBAPP_URL.endswith('/'): WEBAPP_URL += '/'
 
+# --- БОТ ---
+bot = Bot(BOT_TOKEN)
+dp = Dispatcher()
+
+@dp.message(Command("start"))
+async def start(m: Message):
+    user_id = m.from_user.id
+    if user_id in ADMIN_IDS:
+        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📅 Открыть админку", web_app=WebAppInfo(url=WEBAPP_URL))]])
+        await m.answer("Привет, Барбер!", reply_markup=kb)
+    else:
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✂️ Записаться", web_app=WebAppInfo(url=WEBAPP_URL + "client"))],
+            [InlineKeyboardButton(text="📋 Мои записи", web_app=WebAppInfo(url=WEBAPP_URL + "client?view=my"))],
+            [InlineKeyboardButton(text="⭐ Оставить отзыв", web_app=WebAppInfo(url=WEBAPP_URL + "client?view=reviews"))]
+        ])
+        await m.answer("Привет! Выбери действие:", reply_markup=kb)
+
+async def start_bot():
+    import traceback
+    try:
+        await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="Открыть", web_app=WebAppInfo(url=WEBAPP_URL)))
+        print("Бот успешно запущен и начал слушать сообщения!")
+        await dp.start_polling(bot)
+    except Exception as e:
+        print(f"КРИТИЧЕСКАЯ ОШИБКА БОТА: {e}")
+        traceback.print_exc()
+
+# --- БАЗА ДАННЫХ ---
 def db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -26,16 +60,7 @@ def init_db():
                 client_name TEXT NOT NULL, client_phone TEXT, service TEXT, price INTEGER,
                 status TEXT NOT NULL DEFAULT 'confirmed', client_tg_id INTEGER, admin_note TEXT,
                 promo_code TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
-        
-        # Добавляем колонки для отслеживания отправленных напоминаний (чтобы не спамить)
-        cols_to_add = [
-            'client_tg_id INTEGER', 
-            'admin_note TEXT', 
-            'promo_code TEXT', 
-            'reminder_24h_sent INTEGER DEFAULT 0', 
-            'reminder_2h_sent INTEGER DEFAULT 0'
-        ]
-        for col in cols_to_add:
+        for col in ['client_tg_id INTEGER', 'admin_note TEXT', 'promo_code TEXT']:
             try: c.execute(f"ALTER TABLE appointments ADD COLUMN {col}")
             except sqlite3.OperationalError: pass
 
@@ -91,7 +116,8 @@ class AppointmentIn(BaseModel):
     promo_code: str | None = None
 
 class StatusUpdate(BaseModel): status: str
-class SettingsIn(BaseModel): name: str; address: str; avatar: str; logo: str; master_name: str
+class SettingsIn(BaseModel): 
+    name: str; address: str; avatar: str; logo: str; master_name: str
 class ServiceIn(BaseModel): name: str; duration: str; price: int
 class BlockIn(BaseModel): date: str; time: str
 class ReviewIn(BaseModel): client_name: str; rating: int; text: str | None = None
@@ -99,51 +125,15 @@ class PromoIn(BaseModel): code: str; discount: int
 
 app = FastAPI()
 
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(start_bot())
+
 async def send_tg_message(chat_id: int, text: str):
     async with httpx.AsyncClient() as client:
         await client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={"chat_id": chat_id, "text": text})
 
-# --- СИСТЕМА НАПОМИНАНИЙ ---
-@app.on_event("startup")
-async def startup_event():
-    async def reminder_loop():
-        while True:
-            try:
-                # Используем время по Минску/Москве (UTC+3)
-                now = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
-                today_str = now.date().isoformat()
-                tomorrow_str = (now.date() + datetime.timedelta(days=1)).isoformat()
-
-                with db() as c:
-                    # 1. Напоминание за 24 часа (все записи на завтра)
-                    appts_24h = c.execute("SELECT * FROM appointments WHERE date=? AND status='confirmed' AND reminder_24h_sent=0 AND client_tg_id IS NOT NULL", (tomorrow_str,)).fetchall()
-                    for a in appts_24h:
-                        text = f"🔔 Напоминание: завтра в {a['time']} у вас запись на {a['service']}.\nЕсли планы изменились, вы можете отменить запись в приложении."
-                        await send_tg_message(a["client_tg_id"], text)
-                        c.execute("UPDATE appointments SET reminder_24h_sent=1 WHERE id=?", (a["id"],))
-                        print(f"Отправлено напоминание за 24ч: {a['client_name']}")
-
-                    # 2. Напоминание за 2 часа (проверяем сегодняшние записи)
-                    appts_today = c.execute("SELECT * FROM appointments WHERE date=? AND status='confirmed' AND reminder_2h_sent=0 AND client_tg_id IS NOT NULL", (today_str,)).fetchall()
-                    for a in appts_today:
-                        appt_time = datetime.datetime.strptime(f"{a['date']} {a['time']}", "%Y-%m-%d %H:%M")
-                        diff = appt_time - now
-                        # Если до записи осталось от 1 часа 50 минут до 2 часов 10 минут (защита от пропусков)
-                        if datetime.timedelta(hours=1, minutes=50) <= diff <= datetime.timedelta(hours=2, minutes=10):
-                            text = f"⏰ Напоминание: через 2 часа в {a['time']} у вас запись на {a['service']}.\nЖдем вас!"
-                            await send_tg_message(a["client_tg_id"], text)
-                            c.execute("UPDATE appointments SET reminder_2h_sent=1 WHERE id=?", (a["id"],))
-                            print(f"Отправлено напоминание за 2ч: {a['client_name']}")
-
-            except Exception as e:
-                print(f"Ошибка в цикле напоминаний: {e}")
-            
-            # Проверяем каждые 5 минут
-            await asyncio.sleep(300)
-            
-    asyncio.create_task(reminder_loop())
-
-# --- СТАТИСТИКА И CRM ---
+# --- API (ОСТАЛЬНОЙ КОД БЕЗ ИЗМЕНЕНИЙ) ---
 @app.get("/api/stats")
 def get_stats(start_date: str, end_date: str, user=Depends(auth)):
     with db() as c:
@@ -162,7 +152,6 @@ def get_clients(user=Depends(auth)):
         """).fetchall()
         return [dict(r) for r in rows]
 
-# --- ПРОМОКОДЫ ---
 @app.get("/api/promo/validate")
 def validate_promo(code: str):
     with db() as c:
@@ -185,7 +174,6 @@ def add_promo(data: PromoIn, user=Depends(auth)):
 def delete_promo(promo_id: int, user=Depends(auth)):
     with db() as c: c.execute("DELETE FROM promo_codes WHERE id=?", (promo_id,))
 
-# --- ОТЗЫВЫ ---
 @app.get("/api/reviews")
 def get_reviews():
     with db() as c: return [dict(r) for r in c.execute("SELECT * FROM reviews ORDER BY id DESC LIMIT 20").fetchall()]
@@ -203,7 +191,6 @@ def add_review(data: ReviewIn):
     with db() as c: c.execute("INSERT INTO reviews (client_name, rating, text) VALUES (?, ?, ?)", (data.client_name, data.rating, data.text))
     return {"ok": True}
 
-# --- API ---
 @app.get("/api/settings")
 def get_settings():
     with db() as c: rows = c.execute("SELECT key, value FROM settings").fetchall()
@@ -276,8 +263,7 @@ def create_appt_admin(data: AppointmentIn, user=Depends(auth)):
 @app.put("/api/appointments/{apt_id}")
 def update_appt(apt_id: int, data: AppointmentIn, user=Depends(auth)):
     with db() as c:
-        # При изменении времени сбрасываем флаги напоминаний, чтобы они пришли заново
-        c.execute("UPDATE appointments SET date=?, time=?, client_name=?, client_phone=?, service=?, price=?, admin_note=?, reminder_24h_sent=0, reminder_2h_sent=0 WHERE id=?", 
+        c.execute("UPDATE appointments SET date=?, time=?, client_name=?, client_phone=?, service=?, price=?, admin_note=? WHERE id=?", 
                   (data.date, data.time, data.client_name, data.client_phone, data.service, data.price, data.admin_note, apt_id))
 
 @app.patch("/api/appointments/{apt_id}")
