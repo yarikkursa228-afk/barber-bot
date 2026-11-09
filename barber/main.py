@@ -206,15 +206,19 @@ def update_settings(data: SettingsIn, user=Depends(auth)):
         c.execute("UPDATE settings SET value=? WHERE key='master_name'", (data.master_name,))
     return {"ok": True}
 
+from upstash_blob import Bucket
+
+bucket = Bucket.from_env()  # читает UPSTASH_BLOB_TOKEN
+
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...), user=Depends(auth)):
-    os.makedirs("static/uploads", exist_ok=True)
-    ext = file.filename.split(".")[-1]
-    filename = f"{uuid.uuid4()}.{ext}"
-    with open(f"static/uploads/{filename}", "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    return {"url": f"/static/uploads/{filename}"}
-
+    try:
+        contents = await file.read()
+        # Сохраняем файл в папку barber на Upstash
+        blob = bucket.put(f"barber/{file.filename}", contents)
+        return {"url": blob.url}
+    except Exception as e:
+        raise HTTPException(500, f"Ошибка загрузки: {e}")
 @app.get("/api/services")
 def get_services():
     with db() as c: return [dict(r) for r in c.execute("SELECT * FROM services ORDER BY id").fetchall()]
