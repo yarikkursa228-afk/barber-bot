@@ -4,3 +4,4 @@ aiogram>=3.0
 httpx
 python-multipart
 upstash-blob
+psycopg2-binary
