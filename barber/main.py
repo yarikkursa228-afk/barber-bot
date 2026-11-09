@@ -10,7 +10,8 @@ from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeybo
 from fastapi import FastAPI, Depends, HTTPException, Header, File, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel 
+from upstash_blob import Bucket
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 ADMIN_IDS = {int(x) for x in os.environ.get("ADMIN_IDS", "").split(",") if x.strip()}
